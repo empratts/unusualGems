@@ -49,80 +49,59 @@ results = {}
 
 for gem in GemWeights:
     # print("Calculating " + gem)
-    sup = GemPrices[gem].get("Superior", 0.0)
-    supWeight = GemWeights[gem].get("Superior", 0.0)
-    div = GemPrices[gem].get("Divergent", 0.0)
-    divWeight = GemWeights[gem].get("Divergent", 0.0)
-    ano = GemPrices[gem].get("Anomalous", 0.0)
-    anoWeight = GemWeights[gem].get("Anomalous", 0.0)
-    pha = GemPrices[gem].get("Phantasmal", 0.0)
-    phaWeight = GemWeights[gem].get("Phantasmal", 0.0)
+    S = GemPrices[gem].get("Superior", 0.0)
+    SW = GemWeights[gem].get("Superior", 0.0)
+    D = GemPrices[gem].get("Divergent", 0.0)
+    DW = GemWeights[gem].get("Divergent", 0.0)
+    A = GemPrices[gem].get("Anomalous", 0.0)
+    AW = GemWeights[gem].get("Anomalous", 0.0)
+    P = GemPrices[gem].get("Phantasmal", 0.0)
+    PW = GemWeights[gem].get("Phantasmal", 0.0)
 
     lensPrice = PrimeLens
 
     if support.search(gem):
         lensPrice = SecondaryLens
 
-    if supWeight > 0:
-        expectedValue = (div - sup) * (divWeight / (divWeight + anoWeight + phaWeight)) - lensPrice
+    if SW > 0:
+        cost = S + lensPrice
+        expectedReturn = (A*AW+D*DW+P*PW)/(AW+DW+PW)
+        profit = expectedReturn - cost
+        if profit > cutoff:
+            results["Superior {}".format(gem)]=profit
 
-        if expectedValue > cutoff:
-            resultKey = "sup to div " + gem
-            results[resultKey] = expectedValue
+    if AW > 0:
+        cost = A + lensPrice
+        expectedReturn = (S*SW+D*DW+P*PW)/(SW+DW+PW)
+        profit = expectedReturn - cost
+        if profit > cutoff:
+            results["Anomalous {}".format(gem)]=profit
 
-        expectedValue = (ano - sup) * (anoWeight / (divWeight + anoWeight + phaWeight)) - lensPrice
+    if DW > 0:
+        cost = D + lensPrice
+        expectedReturn = (A*AW+S*SW+P*PW)/(AW+SW+PW)
+        profit = expectedReturn - cost
+        if profit > cutoff:
+            results["Divergent {}".format(gem)]=profit
 
-        if expectedValue > cutoff:
-            resultKey = "sup to ano " + gem
-            results[resultKey] = expectedValue
+    if PW > 0:
+        cost = P + lensPrice
+        expectedReturn = (A*AW+D*DW+S*SW)/(AW+DW+SW)
+        profit = expectedReturn - cost
+        if profit > cutoff:
+            results["Phantasmal {}".format(gem)]=profit
 
-        expectedValue = (pha - sup) * (phaWeight / (divWeight + anoWeight + phaWeight)) - lensPrice
-
-        if expectedValue > cutoff:
-            resultKey = "sup to pha " + gem
-            results[resultKey] = expectedValue
-
-    
-    if divWeight > 0:
-        expectedValue = (pha - div) * (phaWeight / (supWeight + anoWeight + phaWeight)) - lensPrice
-
-        if expectedValue > cutoff:
-            resultKey = "div to pha " + gem
-            results[resultKey] = expectedValue
-
-        expectedValue = (ano - div) * (anoWeight / (supWeight + anoWeight + phaWeight)) - lensPrice
-
-        if expectedValue > cutoff:
-            resultKey = "div to ano " + gem
-            results[resultKey] = expectedValue
-
-
-    if anoWeight > 0:
-        expectedValue = (div - ano) * (divWeight / (divWeight + supWeight + phaWeight)) - lensPrice
-
-        if expectedValue > cutoff:
-            resultKey = "ano to div " + gem
-            results[resultKey] = expectedValue
-
-        expectedValue = (pha - ano) * (phaWeight / (divWeight + supWeight + phaWeight)) - lensPrice
-
-        if expectedValue > cutoff:
-            resultKey = "ano to pha " + gem
-            results[resultKey] = expectedValue
-
-
-    if phaWeight > 0:
-        expectedValue = (div - pha) * (divWeight / (divWeight + anoWeight + supWeight)) - lensPrice
-
-        if expectedValue > cutoff:
-            resultKey = "pha to div " + gem
-            results[resultKey] = expectedValue
-
-        expectedValue = (ano - pha) * (anoWeight / (divWeight + anoWeight + supWeight)) - lensPrice
-
-        if expectedValue > cutoff:
-            resultKey = "pha to ano " + gem
-            results[resultKey] = expectedValue
+qualityRemove = re.compile("^(Superior|Divergent|Anomalous|Phantasmal) (.*)$")
 
 for result in results:
-    print(result + " - " + str(results[result]))
+    if not support.search(result):
+        print(result + " - " + str(results[result]))
+        # baseName = qualityRemove.search(result).group(2)
+        # print(GemPrices[baseName])
+        # print(GemWeights[baseName])
+
+print("---------Supports---------")
+
+for result in results:
+    if support.search(result):
+        print(result + " - " + str(results[result]))
