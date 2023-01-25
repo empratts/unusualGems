@@ -1,31 +1,35 @@
 from weights import GemWeights
+from newWeights import newGemWeights
 import json
 import re
+
+def sum(weights):
+    mySum = 0
+    for w in weights:
+        mySum += w
+
+    return mySum
+
 
 GemPrices = {}
 
 PrimeLens = 90
 SecondaryLens = 290
 cutoff = 40
-
+qual = {"Superior":0, "Anomalous":1, "Divergent":2, "Phantasmal":3}
+qualLookup = ["Superior", "Anomalous", "Divergent", "Phantasmal"]
 
 f = open("ninja.json", "r")
 ninjaJSON = json.load(f) 
-
-
-for gem in GemWeights:
-    GemPrices[gem] = {}
-    for type in GemWeights[gem]:
-        GemPrices[gem][type] = 0
-
-
-# for attribute in ninjaJSON["lines"][0]:
-#     print(attribute)
 
 woke = re.compile('^Awakened')
 qualityType = re.compile("^(Divergent|Anomalous|Phantasmal)")
 support = re.compile(" Support$")
 
+for gem in newGemWeights:
+    GemPrices[gem] = [0.0,0.0,0.0,0.0]
+
+#import prices from Ninja
 for item in ninjaJSON["lines"]:
     if item.get("corrupted", False) is False:
         if not woke.search(item["name"]):
@@ -37,71 +41,45 @@ for item in ninjaJSON["lines"]:
             else:
                 myQualType = REmatch.group(1)
 
-            if myQualType is not "Superior":
+            if myQualType != "Superior":
                 myShortName = item['name'][len(myQualType) + 1:]
             else:
                 myShortName = item['name']
-            if GemPrices[myShortName][myQualType] is 0 or GemPrices[myShortName][myQualType] > item['chaosValue']:
-                GemPrices[myShortName][myQualType] = item['chaosValue']
-
+            
+            if GemPrices[myShortName][qual[myQualType]] == 0 or GemPrices[myShortName][qual[myQualType]] > item['chaosValue']:
+                GemPrices[myShortName][qual[myQualType]] = item['chaosValue']
 
 results = {}
 
-for gem in GemWeights:
-    # print("Calculating " + gem)
-    S = GemPrices[gem].get("Superior", 0.0)
-    SW = GemWeights[gem].get("Superior", 0.0)
-    D = GemPrices[gem].get("Divergent", 0.0)
-    DW = GemWeights[gem].get("Divergent", 0.0)
-    A = GemPrices[gem].get("Anomalous", 0.0)
-    AW = GemWeights[gem].get("Anomalous", 0.0)
-    P = GemPrices[gem].get("Phantasmal", 0.0)
-    PW = GemWeights[gem].get("Phantasmal", 0.0)
-
+for gem in newGemWeights:
     lensPrice = PrimeLens
 
     if support.search(gem):
         lensPrice = SecondaryLens
 
-    if SW > 0:
-        cost = S + lensPrice
-        expectedReturn = (A*AW+D*DW+P*PW)/(AW+DW+PW)
-        profit = expectedReturn - cost
-        if profit > cutoff:
-            results["Superior {}".format(gem)]=profit
+    #calculate hits
+    #a hit is any gem where the expected value of slamming a lens is above the cutoff
+    for source in qual.values():
+        for dest in qual.values():
+            if source != dest and GemPrices[gem][dest] > lensPrice:
+                cost = lensPrice + GemPrices[gem][source]
+                probability = newGemWeights[gem][dest] / (sum(newGemWeights[gem]) - newGemWeights[gem][source])
+                gross = probability * GemPrices[gem][dest]
+                profit = gross - cost
+                
+                if profit > cutoff:
+                    if results.get(gem) is None:
+                        results[gem] = {}
+                    results[gem][(source, dest)] = {"Profit":profit, "HitChance": probability, "SalvageChance":0.0}
 
-    if AW > 0:
-        cost = A + lensPrice
-        expectedReturn = (S*SW+D*DW+P*PW)/(SW+DW+PW)
-        profit = expectedReturn - cost
-        if profit > cutoff:
-            results["Anomalous {}".format(gem)]=profit
+    #calculate salvage rate
+    for hit in results.get(gem, {}):
+        for dest in qual.values():
+            if hit[0] != dest and hit[1] != dest and results[gem].get((dest, hit[1])) != None:
+                probability = newGemWeights[gem][dest] / (sum(newGemWeights[gem]) - newGemWeights[gem][hit[0]])
+                results[gem][hit]["SalvageChance"] += probability
 
-    if DW > 0:
-        cost = D + lensPrice
-        expectedReturn = (A*AW+S*SW+P*PW)/(AW+SW+PW)
-        profit = expectedReturn - cost
-        if profit > cutoff:
-            results["Divergent {}".format(gem)]=profit
-
-    if PW > 0:
-        cost = P + lensPrice
-        expectedReturn = (A*AW+D*DW+S*SW)/(AW+DW+SW)
-        profit = expectedReturn - cost
-        if profit > cutoff:
-            results["Phantasmal {}".format(gem)]=profit
-
-qualityRemove = re.compile("^(Superior|Divergent|Anomalous|Phantasmal) (.*)$")
-
-for result in results:
-    if not support.search(result):
-        print(result + " - " + str(results[result]))
-        # baseName = qualityRemove.search(result).group(2)
-        # print(GemPrices[baseName])
-        # print(GemWeights[baseName])
-
-print("---------Supports---------")
-
-for result in results:
-    if support.search(result):
-        print(result + " - " + str(results[result]))
+for gem in results:
+    for hit, result in results[gem].items():
+        print("{} {} to {} - Profit: {:.3f} Hit Rate: {:.2%} Salvage: {:.2%}".format(qualLookup[hit[0]], gem, qualLookup[hit[1]], result["Profit"], result["HitChance"], result["SalvageChance"]))
+    print("--------------------------------------")
